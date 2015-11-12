@@ -329,7 +329,7 @@ func PairMover(in ObjectPairChan, fdst Fs, wg *sync.WaitGroup) {
 		Stats.Transferring(src)
 		if Config.DryRun {
 			Debug(src, "Not moving as --dry-run")
-		} else if haveMover {
+		} else if haveMover && src.Fs().Name() == fdst.Name() {
 			// Delete destination if it exists
 			if pair.dst != nil {
 				err := dst.Remove()
@@ -530,7 +530,32 @@ func MoveDir(fdst, fsrc Fs) error {
 		ErrorLog(fdst, "Not deleting files as there were IO errors")
 		return err
 	}
-	return Purge(fsrc)
+
+	// Only delete files allowed by the filter... if something is left behind keep it
+	toDelete := make(ObjectsChan, Config.Transfers)
+	go func() {
+		for src := range fsrc.List() {
+			if Config.Filter.Include(src.Remote(), src.Size(), src.ModTime()) {
+				toDelete <- src
+			} else {
+				Debug(src, "Skipping delete")
+			}
+		}
+		close(toDelete)
+	}()
+	DeleteFiles(toDelete)
+	if err != nil {
+		Stats.Error()
+		return err
+	}
+	// Best effort to remove empty dirs
+	if !Config.DryRun {
+		err = fsrc.Rmdir()
+		if err != nil {
+			Log(fsrc, "Couldn't delete: %s", err)
+		}
+	}
+	return nil
 }
 
 // Check the files in fsrc and fdst according to Size and MD5SUM

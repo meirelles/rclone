@@ -98,7 +98,7 @@ var Commands = []Command{
 		ArgsHelp: "source:path dest:path",
 		Help: `
         Moves the source to the destination.  This is equivalent to a
-        copy followed by a purge, but may use server side operations
+        copy followed by a delete, but may use server side operations
         to speed it up. Since this can cause data loss, test first
         with the --dry-run flag.`,
 		Run: func(fdst, fsrc fs.Fs) error {
